@@ -11,11 +11,15 @@ edition = "2021"
 exclude = ["package.json", "tests/**"]
 
 [dependencies]
+yansi = "0.5"
+unicode-width = "0.1.9"
+concolor = { version = "0.1", optional = true }
 
 [dev-dependencies]
 
 [features]
-default = []
+default = ["auto-color"]
+auto-color = ["concolor", "concolor/auto"]
 
 [package.metadata.docs.rs]
 all-features = true
