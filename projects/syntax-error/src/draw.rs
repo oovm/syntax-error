@@ -134,7 +134,7 @@ pub trait StreamAwareFmt: Sized {
     }
 }
 
-impl<T: fmt::Display> StreamAwareFmt for T {}
+impl<T: Display> StreamAwareFmt for T {}
 
 /// A trait used to add formatting attributes to displayable items.
 ///
@@ -147,7 +147,7 @@ pub trait Fmt: Sized {
     /// Give this value the specified foreground colour.
     fn fg<C: Into<Option<Color>>>(self, color: C) -> Foreground<Self>
     where
-        Self: fmt::Display,
+        Self: Display,
     {
         if cfg!(feature = "concolor") {
             StreamAwareFmt::fg(self, color, StreamType::Stderr)
@@ -159,7 +159,7 @@ pub trait Fmt: Sized {
     /// Give this value the specified background colour.
     fn bg<C: Into<Option<Color>>>(self, color: C) -> Background<Self>
     where
-        Self: fmt::Display,
+        Self: Display,
     {
         if cfg!(feature = "concolor") {
             StreamAwareFmt::bg(self, color, StreamType::Stdout)
@@ -169,7 +169,7 @@ pub trait Fmt: Sized {
     }
 }
 
-impl<T: fmt::Display> Fmt for T {}
+impl<T: Display> Fmt for T {}
 
 /// A trait used to add formatting attributes to displayable items intended to be written to `stdout`.
 ///
@@ -189,12 +189,12 @@ pub trait StdoutFmt: StreamAwareFmt {
 }
 
 #[cfg(feature = "concolor")]
-impl<T: fmt::Display> StdoutFmt for T {}
+impl<T: Display> StdoutFmt for T {}
 
 #[derive(Copy, Clone, Debug)]
 pub struct Foreground<T>(T, Option<Color>);
-impl<T: fmt::Display> fmt::Display for Foreground<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl<T: Display> Display for Foreground<T> {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         if let Some(col) = self.1 {
             write!(f, "{}", Paint::new(&self.0).fg(col))
         } else {
@@ -205,8 +205,8 @@ impl<T: fmt::Display> fmt::Display for Foreground<T> {
 
 #[derive(Copy, Clone, Debug)]
 pub struct Background<T>(T, Option<Color>);
-impl<T: fmt::Display> fmt::Display for Background<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl<T: Display> Display for Background<T> {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         if let Some(col) = self.1 {
             write!(f, "{}", Paint::new(&self.0).bg(col))
         } else {

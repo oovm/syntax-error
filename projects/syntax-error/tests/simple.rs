@@ -1,6 +1,6 @@
 use syntax_error::{Report, ReportKind, Label, Source};
 
-
+#[test]
 fn main() {
     Report::new(ReportKind::Error, (), 34)
         .with_message("Incompatible types")

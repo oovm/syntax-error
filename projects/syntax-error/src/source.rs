@@ -10,23 +10,23 @@ use std::{
 pub trait Cache<Id: ?Sized> {
     /// Fetch the [`Source`] identified by the given ID, if possible.
     // TODO: Don't box
-    fn fetch(&mut self, id: &Id) -> Result<&Source, Box<dyn fmt::Debug + '_>>;
+    fn fetch(&mut self, id: &Id) -> Result<&Source, Box<dyn Debug + '_>>;
 
     /// Display the given ID. as a single inline value.
     ///
     /// This function may make use of attributes from the [`Fmt`] trait.
     // TODO: Don't box
-    fn display<'a>(&self, id: &'a Id) -> Option<Box<dyn fmt::Display + 'a>>;
+    fn display<'a>(&self, id: &'a Id) -> Option<Box<dyn Display + 'a>>;
 }
 
 impl<'b, C: Cache<Id>, Id: ?Sized> Cache<Id> for &'b mut C {
-    fn fetch(&mut self, id: &Id) -> Result<&Source, Box<dyn fmt::Debug + '_>> { C::fetch(self, id) }
-    fn display<'a>(&self, id: &'a Id) -> Option<Box<dyn fmt::Display + 'a>> { C::display(self, id) }
+    fn fetch(&mut self, id: &Id) -> Result<&Source, Box<dyn Debug + '_>> { C::fetch(self, id) }
+    fn display<'a>(&self, id: &'a Id) -> Option<Box<dyn Display + 'a>> { C::display(self, id) }
 }
 
 impl<C: Cache<Id>, Id: ?Sized> Cache<Id> for Box<C> {
-    fn fetch(&mut self, id: &Id) -> Result<&Source, Box<dyn fmt::Debug + '_>> { C::fetch(self, id) }
-    fn display<'a>(&self, id: &'a Id) -> Option<Box<dyn fmt::Display + 'a>> { C::display(self, id) }
+    fn fetch(&mut self, id: &Id) -> Result<&Source, Box<dyn Debug + '_>> { C::fetch(self, id) }
+    fn display<'a>(&self, id: &'a Id) -> Option<Box<dyn Display + 'a>> { C::display(self, id) }
 }
 
 /// A type representing a single line of a [`Source`].
@@ -157,15 +157,15 @@ impl Source {
 }
 
 impl Cache<()> for Source {
-    fn fetch(&mut self, _: &()) -> Result<&Source, Box<dyn fmt::Debug + '_>> { Ok(self) }
-    fn display(&self, _: &()) -> Option<Box<dyn fmt::Display>> { None }
+    fn fetch(&mut self, _: &()) -> Result<&Source, Box<dyn Debug + '_>> { Ok(self) }
+    fn display(&self, _: &()) -> Option<Box<dyn Display>> { None }
 }
 
-impl<Id: fmt::Display + Eq> Cache<Id> for (Id, Source) {
-    fn fetch(&mut self, id: &Id) -> Result<&Source, Box<dyn fmt::Debug + '_>> {
+impl<Id: Display + Eq> Cache<Id> for (Id, Source) {
+    fn fetch(&mut self, id: &Id) -> Result<&Source, Box<dyn Debug + '_>> {
         if id == &self.0 { Ok(&self.1) } else { Err(Box::new(format!("Failed to fetch source '{}'", id))) }
     }
-    fn display<'a>(&self, id: &'a Id) -> Option<Box<dyn fmt::Display + 'a>> { Some(Box::new(id)) }
+    fn display<'a>(&self, id: &'a Id) -> Option<Box<dyn Display + 'a>> { Some(Box::new(id)) }
 }
 
 /// A [`Cache`] that fetches [`Source`]s from the filesystem.
@@ -175,13 +175,13 @@ pub struct FileCache {
 }
 
 impl Cache<Path> for FileCache {
-    fn fetch(&mut self, path: &Path) -> Result<&Source, Box<dyn fmt::Debug + '_>> {
+    fn fetch(&mut self, path: &Path) -> Result<&Source, Box<dyn Debug + '_>> {
         Ok(match self.files.entry(path.to_path_buf()) { // TODO: Don't allocate here
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => entry.insert(Source::from(&fs::read_to_string(path).map_err(|e| Box::new(e) as _)?)),
         })
     }
-    fn display<'a>(&self, path: &'a Path) -> Option<Box<dyn fmt::Display + 'a>> { Some(Box::new(path.display())) }
+    fn display<'a>(&self, path: &'a Path) -> Option<Box<dyn Display + 'a>> { Some(Box::new(path.display())) }
 }
 
 /// A [`Cache`] that fetches [`Source`]s using the provided function.
@@ -212,22 +212,22 @@ impl<Id, F> FnCache<Id, F> {
     }
 }
 
-impl<Id: fmt::Display + Hash + PartialEq + Eq + Clone, F> Cache<Id> for FnCache<Id, F>
-    where F: for<'a> FnMut(&'a Id) -> Result<String, Box<dyn fmt::Debug>>
+impl<Id: Display + Hash + PartialEq + Eq + Clone, F> Cache<Id> for FnCache<Id, F>
+    where F: for<'a> FnMut(&'a Id) -> Result<String, Box<dyn Debug>>
 {
-    fn fetch(&mut self, id: &Id) -> Result<&Source, Box<dyn fmt::Debug + '_>> {
+    fn fetch(&mut self, id: &Id) -> Result<&Source, Box<dyn Debug + '_>> {
         Ok(match self.sources.entry(id.clone()) {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => entry.insert(Source::from((self.get)(id)?)),
         })
     }
-    fn display<'a>(&self, id: &'a Id) -> Option<Box<dyn fmt::Display + 'a>> { Some(Box::new(id)) }
+    fn display<'a>(&self, id: &'a Id) -> Option<Box<dyn Display + 'a>> { Some(Box::new(id)) }
 }
 
 /// Create a [`Cache`] from a collection of ID/strings, where each corresponds to a [`Source`].
 pub fn sources<Id, S, I>(iter: I) -> impl Cache<Id>
 where
-    Id: fmt::Display + Hash + PartialEq + Eq + Clone + 'static,
+    Id: Display + Hash + PartialEq + Eq + Clone + 'static,
     I: IntoIterator<Item = (Id, S)>,
     S: AsRef<str>,
 {

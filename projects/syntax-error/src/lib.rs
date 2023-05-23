@@ -6,6 +6,7 @@ mod display;
 mod draw;
 mod write;
 
+use std::fmt::{Debug, Display, Formatter};
 pub use crate::{
     source::{Line, Source, Cache, FileCache, FnCache, sources},
     draw::{Fmt, ColorGenerator},
@@ -21,7 +22,6 @@ use std::{
     io::{self, Write},
     hash::Hash,
     cmp::{PartialEq, Eq},
-    fmt,
 };
 use unicode_width::UnicodeWidthChar;
 
@@ -60,7 +60,7 @@ impl Span for Range<usize> {
     fn end(&self) -> usize { self.end }
 }
 
-impl<Id: fmt::Debug + Hash + PartialEq + Eq + ToOwned> Span for (Id, Range<usize>) {
+impl<Id: Debug + Hash + PartialEq + Eq + ToOwned> Span for (Id, Range<usize>) {
     type SourceId = Id;
 
     fn source(&self) -> &Self::SourceId { &self.0 }
@@ -173,8 +173,8 @@ impl<S: Span> Report<'_, S> {
     }
 }
 
-impl<'a, S: Span> fmt::Debug for Report<'a, S> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<'a, S: Span> Debug for Report<'a, S> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Report")
             .field("kind", &self.kind)
             .field("code", &self.code)
@@ -185,27 +185,47 @@ impl<'a, S: Span> fmt::Debug for Report<'a, S> {
             .finish()
     }
 }
+
+// @trace 0
+// @print 100
+// @blame 150
+// @risky 175
+// @alert 200
+// @error 250
+// @fatal 255
 /// A type that defines the kind of report being produced.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ReportKind<'a> {
+    /// The report is advice to the user about a potential anti-pattern of other benign issues.
+    Trace,
+    /// The report is advice to the user about a potential anti-pattern of other benign issues.
+    Print,
+    /// The report is advice to the user about a potential anti-pattern of other benign issues.
+    Blame,
+    /// The report is advice to the user about a potential anti-pattern of other benign issues.
+    Risky,
+    /// The report is a warning and indicates a likely problem, but not to the extent that the requested action cannot
+    /// be performed.
+    Alert,
     /// The report is an error and indicates a critical problem that prevents the program performing the requested
     /// action.
     Error,
-    /// The report is a warning and indicates a likely problem, but not to the extent that the requested action cannot
-    /// be performed.
-    Warning,
-    /// The report is advice to the user about a potential anti-pattern of other benign issues.
-    Advice,
+    /// Fatal error that caused this program to terminate
+    Fatal,
     /// The report is of a kind not built into Ariadne.
     Custom(&'a str, Color),
 }
 
-impl fmt::Display for ReportKind<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl Display for ReportKind<'_> {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         match self {
             ReportKind::Error => write!(f, "Error"),
-            ReportKind::Warning => write!(f, "Warning"),
-            ReportKind::Advice => write!(f, "Advice"),
+            ReportKind::Alert => write!(f, "Warning"),
+            ReportKind::Risky => write!(f, "Advice"),
+            ReportKind::Trace => {}
+            ReportKind::Print => {}
+            ReportKind::Blame => {}
+            ReportKind::Fatal => {}
             ReportKind::Custom(s, _) => write!(f, "{}", s),
         }
     }
@@ -225,7 +245,7 @@ pub struct ReportBuilder<'a, S: Span> {
 
 impl<'a, S: Span> ReportBuilder<'a, S> {
     /// Give this report a numerical code that may be used to more precisely look up the error in documentation.
-    pub fn with_code<C: fmt::Display>(mut self, code: C) -> Self {
+    pub fn with_code<C: Display>(mut self, code: C) -> Self {
         self.code = Some(format!("{:02}", code));
         self
     }
@@ -307,8 +327,8 @@ impl<'a, S: Span> ReportBuilder<'a, S> {
     }
 }
 
-impl<'a, S: Span> fmt::Debug for ReportBuilder<'a, S> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<'a, S: Span> Debug for ReportBuilder<'a, S> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ReportBuilder")
             .field("kind", &self.kind)
             .field("code", &self.code)

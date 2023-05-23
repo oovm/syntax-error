@@ -118,9 +118,13 @@ impl<S: Span> Report<'_, S> {
         let id = format!("{}{}:", Show(code), self.kind);
         let kind_color = match self.kind {
             ReportKind::Error => self.config.error_color(),
-            ReportKind::Warning => self.config.warning_color(),
-            ReportKind::Advice => self.config.advice_color(),
+            ReportKind::Alert => self.config.warning_color(),
+            ReportKind::Risky => self.config.advice_color(),
             ReportKind::Custom(_, color) => Some(color),
+            ReportKind::Trace => {}
+            ReportKind::Print => {}
+            ReportKind::Blame => {}
+            ReportKind::Fatal => {}
         };
         writeln!(w, "{} {}", id.fg(kind_color, s), Show(self.msg.as_ref()))?;
 

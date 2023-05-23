@@ -12,14 +12,12 @@ exclude = ["package.json", "tests/**"]
 
 [dependencies]
 yansi = "0.5"
-unicode-width = "0.1.9"
-concolor = { version = "0.1", optional = true }
+unicode-width = "0.1.10"
 
 [dev-dependencies]
 
 [features]
-default = ["auto-color"]
-auto-color = ["concolor", "concolor/auto"]
+default = []
 
 [package.metadata.docs.rs]
 all-features = true
