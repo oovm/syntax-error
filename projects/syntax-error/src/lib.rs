@@ -1,16 +1,16 @@
 #![doc = include_str!("../README.md")]
 #![deny(missing_docs)]
 
-mod source;
 mod display;
 mod draw;
+mod source;
 mod write;
 
-use std::fmt::{Debug, Display, Formatter};
 pub use crate::{
-    source::{Line, Source, Cache, FileCache, FnCache, sources},
-    draw::{Fmt, ColorGenerator},
+    draw::{ColorGenerator, Fmt},
+    source::{sources, Cache, FileCache, FnCache, Line, Source},
 };
+use std::fmt::{Debug, Display, Formatter};
 pub use yansi::Color;
 
 #[cfg(any(feature = "concolor", doc))]
@@ -18,10 +18,10 @@ pub use crate::draw::StdoutFmt;
 
 use crate::display::*;
 use std::{
-    ops::Range,
-    io::{self, Write},
+    cmp::{Eq, PartialEq},
     hash::Hash,
-    cmp::{PartialEq, Eq},
+    io::{self, Write},
+    ops::Range,
 };
 use unicode_width::UnicodeWidthChar;
 
@@ -46,26 +46,42 @@ pub trait Span {
     fn end(&self) -> usize;
 
     /// Get the length of this span (difference between the start of the span and the end of the span).
-    fn len(&self) -> usize { self.end().saturating_sub(self.start()) }
+    fn len(&self) -> usize {
+        self.end().saturating_sub(self.start())
+    }
 
     /// Determine whether the span contains the given offset.
-    fn contains(&self, offset: usize) -> bool { (self.start()..self.end()).contains(&offset) }
+    fn contains(&self, offset: usize) -> bool {
+        (self.start()..self.end()).contains(&offset)
+    }
 }
 
 impl Span for Range<usize> {
     type SourceId = ();
 
-    fn source(&self) -> &Self::SourceId { &() }
-    fn start(&self) -> usize { self.start }
-    fn end(&self) -> usize { self.end }
+    fn source(&self) -> &Self::SourceId {
+        &()
+    }
+    fn start(&self) -> usize {
+        self.start
+    }
+    fn end(&self) -> usize {
+        self.end
+    }
 }
 
 impl<Id: Debug + Hash + PartialEq + Eq + ToOwned> Span for (Id, Range<usize>) {
     type SourceId = Id;
 
-    fn source(&self) -> &Self::SourceId { &self.0 }
-    fn start(&self) -> usize { self.1.start }
-    fn end(&self) -> usize { self.1.end }
+    fn source(&self) -> &Self::SourceId {
+        &self.0
+    }
+    fn start(&self) -> usize {
+        self.1.start
+    }
+    fn end(&self) -> usize {
+        self.1.end
+    }
 }
 
 /// A type that represents a labelled section of source code.
@@ -81,13 +97,7 @@ pub struct Label<S = Range<usize>> {
 impl<S> Label<S> {
     /// Create a new [`Label`].
     pub fn new(span: S) -> Self {
-        Self {
-            span,
-            msg: None,
-            color: None,
-            order: 0,
-            priority: 0,
-        }
+        Self { span, msg: None, color: None, order: 0, priority: 0 }
     }
 
     /// Give this label a message.
@@ -146,7 +156,11 @@ pub struct Report<S: Span = Range<usize>> {
 
 impl<S: Span> Report<S> {
     /// Begin building a new [`Report`].
-    pub fn new<R, ID>(kind: R, src_id: ID, offset: usize) -> ReportBuilder<S> where ID: Into<<S::SourceId as ToOwned>::Owned>, R: ReportLevel + 'static {
+    pub fn new<R, ID>(kind: R, src_id: ID, offset: usize) -> ReportBuilder<S>
+    where
+        ID: Into<<S::SourceId as ToOwned>::Owned>,
+        R: ReportLevel + 'static,
+    {
         ReportBuilder {
             kind: Box::new(kind),
             code: None,
@@ -219,15 +233,14 @@ impl ReportLevel for ReportKind {
 
     fn get_color(&self) -> Color {
         match self {
-            ReportKind::Trace => { Color::Cyan }
-            ReportKind::Blame => { Color::Green }
-            ReportKind::Alert => { Color::Yellow }
-            ReportKind::Error => { Color::Red }
-            ReportKind::Fatal => { Color::Magenta }
+            ReportKind::Trace => Color::Cyan,
+            ReportKind::Blame => Color::Green,
+            ReportKind::Alert => Color::Yellow,
+            ReportKind::Error => Color::Red,
+            ReportKind::Fatal => Color::Magenta,
         }
     }
 }
-
 
 /// @trace 0
 /// @print 100
@@ -252,7 +265,6 @@ pub enum ReportKind {
     /// Fatal error that caused this program to terminate
     Fatal,
 }
-
 
 /// A type used to build a [`Report`].
 pub struct ReportBuilder<S: Span> {
@@ -316,7 +328,7 @@ impl<S: Span> ReportBuilder<S> {
     }
 
     /// Add multiple labels to the report.
-    pub fn add_labels<L: IntoIterator<Item=Label<S>>>(&mut self, labels: L) {
+    pub fn add_labels<L: IntoIterator<Item = Label<S>>>(&mut self, labels: L) {
         let config = &self.config; // This would not be necessary in Rust 2021 edition
         self.labels.extend(labels.into_iter().map(|mut label| {
             label.color = config.filter_color(label.color);
@@ -331,7 +343,7 @@ impl<S: Span> ReportBuilder<S> {
     }
 
     /// Add multiple labels to the report.
-    pub fn with_labels<L: IntoIterator<Item=Label<S>>>(mut self, labels: L) -> Self {
+    pub fn with_labels<L: IntoIterator<Item = Label<S>>>(mut self, labels: L) -> Self {
         self.add_labels(labels);
         self
     }
@@ -463,12 +475,21 @@ impl Config {
         self
     }
 
-
-    fn margin_color(&self) -> Option<Color> { Some(Color::Fixed(246)).filter(|_| self.color) }
-    fn skipped_margin_color(&self) -> Option<Color> { Some(Color::Fixed(240)).filter(|_| self.color) }
-    fn unimportant_color(&self) -> Option<Color> { Some(Color::Fixed(249)).filter(|_| self.color) }
-    fn note_color(&self) -> Option<Color> { Some(Color::Fixed(115)).filter(|_| self.color) }
-    fn filter_color(&self, color: Option<Color>) -> Option<Color> { color.filter(|_| self.color) }
+    fn margin_color(&self) -> Option<Color> {
+        Some(Color::Fixed(246)).filter(|_| self.color)
+    }
+    fn skipped_margin_color(&self) -> Option<Color> {
+        Some(Color::Fixed(240)).filter(|_| self.color)
+    }
+    fn unimportant_color(&self) -> Option<Color> {
+        Some(Color::Fixed(249)).filter(|_| self.color)
+    }
+    fn note_color(&self) -> Option<Color> {
+        Some(Color::Fixed(115)).filter(|_| self.color)
+    }
+    fn filter_color(&self, color: Option<Color>) -> Option<Color> {
+        color.filter(|_| self.color)
+    }
 
     // Find the character that should be drawn and the number of times it should be drawn for each char
     fn char_width(&self, c: char, col: usize) -> (char, usize) {

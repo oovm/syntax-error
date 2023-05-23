@@ -1,8 +1,9 @@
+use std::ops::Range;
 use syntax_error::{Report, ReportKind, Label, Source};
 
 #[test]
 fn main() {
-    Report::new(ReportKind::Blame, (), 34)
+    Report::<Range<usize>>::new(ReportKind::Blame, (), 34)
         .with_message("Incompatible types")
         .with_code(12)
         .with_label(Label::new(32..33).with_message("This is of type Nat"))

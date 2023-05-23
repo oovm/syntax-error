@@ -117,20 +117,12 @@ pub trait StreamAwareFmt: Sized {
 
     /// Give this value the specified foreground colour, when color is enabled for the specified stream.
     fn fg<C: Into<Option<Color>>>(self, color: C, stream: StreamType) -> Foreground<Self> {
-        if Self::color_enabled_for(stream) {
-            Foreground(self, color.into())
-        } else {
-            Foreground(self, None)
-        }
+        if Self::color_enabled_for(stream) { Foreground(self, color.into()) } else { Foreground(self, None) }
     }
 
     /// Give this value the specified background colour, when color is enabled for the specified stream.
     fn bg<C: Into<Option<Color>>>(self, color: C, stream: StreamType) -> Background<Self> {
-        if Self::color_enabled_for(stream) {
-            Background(self, color.into())
-        } else {
-            Background(self, None)
-        }
+        if Self::color_enabled_for(stream) { Background(self, color.into()) } else { Background(self, None) }
     }
 }
 
@@ -151,7 +143,8 @@ pub trait Fmt: Sized {
     {
         if cfg!(feature = "concolor") {
             StreamAwareFmt::fg(self, color, StreamType::Stderr)
-        } else {
+        }
+        else {
             Foreground(self, color.into())
         }
     }
@@ -163,7 +156,8 @@ pub trait Fmt: Sized {
     {
         if cfg!(feature = "concolor") {
             StreamAwareFmt::bg(self, color, StreamType::Stdout)
-        } else {
+        }
+        else {
             Background(self, color.into())
         }
     }
@@ -195,11 +189,7 @@ impl<T: Display> StdoutFmt for T {}
 pub struct Foreground<T>(T, Option<Color>);
 impl<T: Display> Display for Foreground<T> {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        if let Some(col) = self.1 {
-            write!(f, "{}", Paint::new(&self.0).fg(col))
-        } else {
-            write!(f, "{}", self.0)
-        }
+        if let Some(col) = self.1 { write!(f, "{}", Paint::new(&self.0).fg(col)) } else { write!(f, "{}", self.0) }
     }
 }
 
@@ -207,11 +197,7 @@ impl<T: Display> Display for Foreground<T> {
 pub struct Background<T>(T, Option<Color>);
 impl<T: Display> Display for Background<T> {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        if let Some(col) = self.1 {
-            write!(f, "{}", Paint::new(&self.0).bg(col))
-        } else {
-            write!(f, "{}", self.0)
-        }
+        if let Some(col) = self.1 { write!(f, "{}", Paint::new(&self.0).bg(col)) } else { write!(f, "{}", self.0) }
     }
 }
 
@@ -222,7 +208,9 @@ pub struct ColorGenerator {
 }
 
 impl Default for ColorGenerator {
-    fn default() -> Self { Self::from_state([30000, 15000, 35000], 0.5) }
+    fn default() -> Self {
+        Self::from_state([30000, 15000, 35000], 0.5)
+    }
 }
 
 impl ColorGenerator {
@@ -244,9 +232,11 @@ impl ColorGenerator {
             // magic constant, one of only two that have this property!
             self.state[i] = (self.state[i] as usize).wrapping_add(40503 * (i * 4 + 1130)) as u16;
         }
-        Color::Fixed(16
-            + ((self.state[2] as f32 / 65535.0 * (1.0 - self.min_brightness) + self.min_brightness) * 5.0
-            + (self.state[1] as f32 / 65535.0 * (1.0 - self.min_brightness) + self.min_brightness) * 30.0
-            + (self.state[0] as f32 / 65535.0 * (1.0 - self.min_brightness) + self.min_brightness) * 180.0) as u8)
+        Color::Fixed(
+            16 + ((self.state[2] as f32 / 65535.0 * (1.0 - self.min_brightness) + self.min_brightness) * 5.0
+                + (self.state[1] as f32 / 65535.0 * (1.0 - self.min_brightness) + self.min_brightness) * 30.0
+                + (self.state[0] as f32 / 65535.0 * (1.0 - self.min_brightness) + self.min_brightness) * 180.0)
+                as u8,
+        )
     }
 }

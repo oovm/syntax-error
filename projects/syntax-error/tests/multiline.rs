@@ -1,5 +1,6 @@
 use syntax_error::{Report, ReportKind, Label, Source, Color, ColorGenerator, Fmt};
 
+#[test]
 fn main() {
     let mut colors = ColorGenerator::new();
 
