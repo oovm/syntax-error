@@ -3,7 +3,7 @@ use std::io;
 use std::ops::Range;
 
 use super::draw::{self, StreamAwareFmt, StreamType};
-use super::{Cache, CharSet, Label, LabelAttach, Report,  Show, Span, Write};
+use super::{Cache, CharSet, Label, LabelAttach, Report, Show, Span, Write};
 
 // A WARNING, FOR ALL YE WHO VENTURE IN HERE
 //
@@ -113,12 +113,20 @@ impl<S: Span> Report<S> {
         };
 
         // --- Header ---
-
-        let code = self.code.as_ref().map(|c| format!("[{}] ", c));
-        let id = format!("{}{:?}:", Show(code), self.kind);
         let kind_color = self.kind.get_color();
-        writeln!(w, "{} {}", id.fg(kind_color, s), Show(self.msg.as_ref()))?;
-
+        let head = match &self.code {
+            Some(s) =>
+                format!("{:?}[E{:04}]:", self.kind, s)
+            ,
+            None =>
+                format!("{:?}:", self.kind)
+        };
+        write!(w, "{}", head.fg(kind_color, s))?;
+        if self.message.is_empty() {
+            writeln!(w)?;
+        } else {
+            writeln!(w, " {}", self.message)?;
+        }
         let groups = self.get_source_groups(&mut cache);
 
         // Line number maximum width
@@ -196,7 +204,7 @@ impl<S: Span> Report<S> {
                 } else {
                     draw.lcross
                 }
-                .fg(self.config.margin_color(), s),
+                    .fg(self.config.margin_color(), s),
                 draw.hbar.fg(self.config.margin_color(), s),
                 draw.lbox.fg(self.config.margin_color(), s),
                 src_name,
@@ -239,7 +247,7 @@ impl<S: Span> Report<S> {
                                 report_row: Option<(usize, bool)>,
                                 line_labels: &[LineLabel<S>],
                                 margin_label: &Option<LineLabel<S>>|
-             -> std::io::Result<()> {
+                                -> std::io::Result<()> {
                 let line_no_margin = if is_line && !is_ellipsis {
                     let line_no = format!("{}", idx + 1);
                     format!(
@@ -248,7 +256,7 @@ impl<S: Span> Report<S> {
                         line_no,
                         draw.vbar,
                     )
-                    .fg(self.config.margin_color(), s)
+                        .fg(self.config.margin_color(), s)
                 } else {
                     format!(
                         "{}{}",
@@ -259,7 +267,7 @@ impl<S: Span> Report<S> {
                             draw.vbar
                         }
                     )
-                    .fg(self.config.skipped_margin_color(), s)
+                        .fg(self.config.skipped_margin_color(), s)
                 };
 
                 write!(
@@ -364,7 +372,7 @@ impl<S: Span> Report<S> {
                                 } else {
                                     draw.vbar
                                 }
-                                .fg(label.color, s),
+                                    .fg(label.color, s),
                                 ' '.fg(None, s),
                             )
                         } else if let (Some((margin, is_start)), true) = (margin_ptr, is_line) {
@@ -383,7 +391,7 @@ impl<S: Span> Report<S> {
                                 } else {
                                     draw.hbar
                                 }
-                                .fg(margin.label.color, s),
+                                    .fg(margin.label.color, s),
                                 if !is_limit { draw.hbar } else { ' ' }.fg(margin.label.color, s),
                             )
                         } else {
@@ -443,8 +451,8 @@ impl<S: Span> Report<S> {
                         let is_end = line.span().contains(&label.last_offset());
                         if is_start
                             && margin_label
-                                .as_ref()
-                                .map_or(true, |m| **label as *const _ != m.label as *const _)
+                            .as_ref()
+                            .map_or(true, |m| **label as *const _ != m.label as *const _)
                         {
                             // TODO: Check to see whether multi is the first on the start line or first on the end line
                             Some(LineLabel {
@@ -480,7 +488,7 @@ impl<S: Span> Report<S> {
                                 }
                                 LabelAttach::End => label_info.label.last_offset(),
                             }
-                            .max(label_info.label.span.start())
+                                .max(label_info.label.span.start())
                                 - line.offset(),
                             label: label_info.label,
                             multi: false,
@@ -530,8 +538,8 @@ impl<S: Span> Report<S> {
                         .filter(|(_, ll)| {
                             ll.label.msg.is_some()
                                 && margin_label
-                                    .as_ref()
-                                    .map_or(true, |m| ll.label as *const _ != m.label as *const _)
+                                .as_ref()
+                                .map_or(true, |m| ll.label as *const _ != m.label as *const _)
                         })
                         .find(|(j, ll)| {
                             ll.col == col && ((row <= *j && !ll.multi) || (row <= *j && ll.multi))
@@ -555,9 +563,9 @@ impl<S: Span> Report<S> {
                         .iter()
                         .filter(|ll| {
                             self.config.underlines
-                        // Underlines only occur for inline spans (highlighting can occur for all spans)
-                        && !ll.multi
-                        && ll.label.span.contains(line.offset() + col)
+                                // Underlines only occur for inline spans (highlighting can occur for all spans)
+                                && !ll.multi
+                                && ll.label.span.contains(line.offset() + col)
                         })
                         // Prioritise displaying smaller spans
                         .min_by_key(|ll| (-ll.label.priority, ll.label.span.len()))
@@ -672,14 +680,14 @@ impl<S: Span> Report<S> {
 
                         let is_hbar = (((col > line_label.col) ^ line_label.multi)
                             || (line_label.label.msg.is_some()
-                                && line_label.draw_msg
-                                && col > line_label.col))
+                            && line_label.draw_msg
+                            && col > line_label.col))
                             && line_label.label.msg.is_some();
                         let [c, tail] = if col == line_label.col
                             && line_label.label.msg.is_some()
                             && margin_label.as_ref().map_or(true, |m| {
-                                line_label.label as *const _ != m.label as *const _
-                            }) {
+                            line_label.label as *const _ != m.label as *const _
+                        }) {
                             [
                                 if line_label.multi {
                                     if line_label.draw_msg {
@@ -690,7 +698,7 @@ impl<S: Span> Report<S> {
                                 } else {
                                     draw.lbot
                                 }
-                                .fg(line_label.label.color, s),
+                                    .fg(line_label.label.color, s),
                                 draw.hbar.fg(line_label.label.color, s),
                             ]
                         } else if let Some(vbar_ll) = get_vbar(col, row)
@@ -710,7 +718,7 @@ impl<S: Span> Report<S> {
                                     } else {
                                         draw.vbar
                                     }
-                                    .fg(vbar_ll.label.color, s),
+                                        .fg(vbar_ll.label.color, s),
                                     ' '.fg(line_label.label.color, s),
                                 ]
                             }
