@@ -3,7 +3,7 @@ use std::io;
 use std::ops::Range;
 
 use super::draw::{self, StreamAwareFmt, StreamType};
-use super::{Cache, CharSet, Label, LabelAttach, Report, ReportKind, Show, Span, Write};
+use super::{Cache, CharSet, Label, LabelAttach, Report,  Show, Span, Write};
 
 // A WARNING, FOR ALL YE WHO VENTURE IN HERE
 //
@@ -29,7 +29,7 @@ struct SourceGroup<'a, S: Span> {
     labels: Vec<LabelInfo<'a, S>>,
 }
 
-impl<S: Span> Report<'_, S> {
+impl<S: Span> Report<S> {
     fn get_source_groups(&self, cache: &mut impl Cache<S::SourceId>) -> Vec<SourceGroup<S>> {
         let mut groups = Vec::new();
         for label in self.labels.iter() {
@@ -115,17 +115,8 @@ impl<S: Span> Report<'_, S> {
         // --- Header ---
 
         let code = self.code.as_ref().map(|c| format!("[{}] ", c));
-        let id = format!("{}{}:", Show(code), self.kind);
-        let kind_color = match self.kind {
-            ReportKind::Error => self.config.error_color(),
-            ReportKind::Alert => self.config.warning_color(),
-            ReportKind::Risky => self.config.advice_color(),
-            ReportKind::Custom(_, color) => Some(color),
-            ReportKind::Trace => {}
-            ReportKind::Print => {}
-            ReportKind::Blame => {}
-            ReportKind::Fatal => {}
-        };
+        let id = format!("{}{:?}:", Show(code), self.kind);
+        let kind_color = self.kind.get_color();
         writeln!(w, "{} {}", id.fg(kind_color, s), Show(self.msg.as_ref()))?;
 
         let groups = self.get_source_groups(&mut cache);

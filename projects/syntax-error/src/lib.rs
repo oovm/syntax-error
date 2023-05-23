@@ -146,11 +146,11 @@ pub struct Report<S: Span = Range<usize>> {
 
 impl<S: Span> Report<S> {
     /// Begin building a new [`Report`].
-    pub fn new<Id: Into<<S::SourceId as ToOwned>::Owned>>(kind: impl ReportLevel, src_id: Id, offset: usize) -> ReportBuilder<S> {
+    pub fn new<Id, R>(kind: R, src_id: Id, offset: usize) -> ReportBuilder<S> where Id: Into<<S::SourceId as ToOwned>::Owned>, R: ReportLevel + 'static {
         ReportBuilder {
-            kind,
+            kind: Box::new(kind),
             code: None,
-            msg: None,
+            msg: "".to_string(),
             note: None,
             help: None,
             location: (src_id.into(), offset),
@@ -173,7 +173,7 @@ impl<S: Span> Report<S> {
     }
 }
 
-impl<'a, S: Span> Debug for Report<'a, S> {
+impl<'a, S: Span> Debug for Report<S> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Report")
             .field("kind", &self.kind)
@@ -186,22 +186,23 @@ impl<'a, S: Span> Debug for Report<'a, S> {
     }
 }
 
-
-
-pub trait ReportLevel: Display {
+/// A builder for [`Report`].
+pub trait ReportLevel: Debug {
+    /// The level of this report.
     fn level(&self) -> u8;
+    /// The color of this report.
+    fn get_color(&self) -> Color;
 }
 
-impl Display for ReportKind {
+impl Debug for ReportKind {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         match self {
-            ReportKind::Error => f.write_str("error"),
-            ReportKind::Alert => f.write_str("alert"),
-            ReportKind::Risky => f.write_str("risky"),
-            ReportKind::Trace => f.write_str("trace"),
-            ReportKind::Print => f.write_str("print"),
-            ReportKind::Blame => f.write_str("blame"),
-            ReportKind::Fatal => f.write_str("fatal"),
+            ReportKind::Error => f.write_str("ERROR"),
+            ReportKind::Alert => f.write_str("ALERT"),
+            ReportKind::Risky => f.write_str("RISKY"),
+            ReportKind::Trace => f.write_str("TRACE"),
+            ReportKind::Blame => f.write_str("BLAME"),
+            ReportKind::Fatal => f.write_str("FATAL"),
         }
     }
 }
@@ -210,12 +211,22 @@ impl ReportLevel for ReportKind {
     fn level(&self) -> u8 {
         match self {
             ReportKind::Trace => 0,
-            ReportKind::Print => 100,
             ReportKind::Blame => 150,
             ReportKind::Risky => 175,
             ReportKind::Alert => 200,
             ReportKind::Error => 250,
             ReportKind::Fatal => 255,
+        }
+    }
+
+    fn get_color(&self) -> Color {
+        match self {
+            ReportKind::Trace => { todo!() }
+            ReportKind::Blame => { Color::Fixed(147) }
+            ReportKind::Risky => { todo!() }
+            ReportKind::Alert => { Color::Yellow }
+            ReportKind::Error => { Color::Red }
+            ReportKind::Fatal => { Color::Magenta }
         }
     }
 }
@@ -229,12 +240,10 @@ impl ReportLevel for ReportKind {
 /// @error 250
 /// @fatal 255
 /// A type that defines the kind of report being produced.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum ReportKind {
     /// The report is advice to the user about a potential anti-pattern of other benign issues.
     Trace,
-    /// The report is advice to the user about a potential anti-pattern of other benign issues.
-    Print,
     /// The report is advice to the user about a potential anti-pattern of other benign issues.
     Blame,
     /// The report is advice to the user about a potential anti-pattern of other benign issues.
@@ -247,119 +256,6 @@ pub enum ReportKind {
     Error,
     /// Fatal error that caused this program to terminate
     Fatal,
-}
-
-
-/// A type used to build a [`Report`].
-pub struct ReportBuilder<'a, S: Span> {
-    kind: ReportKind<'a>,
-    code: Option<String>,
-    msg: Option<String>,
-    note: Option<String>,
-    help: Option<String>,
-    location: (<S::SourceId as ToOwned>::Owned, usize),
-    labels: Vec<Label<S>>,
-    config: Config,
-}
-
-impl<'a, S: Span> ReportBuilder<'a, S> {
-    /// Give this report a numerical code that may be used to more precisely look up the error in documentation.
-    pub fn with_code<C: Display>(mut self, code: C) -> Self {
-        self.code = Some(format!("{:02}", code));
-        self
-    }
-
-    /// Set the message of this report.
-    pub fn set_message<M: ToString>(&mut self, msg: M) {
-        self.msg = Some(msg.to_string());
-    }
-
-    /// Add a message to this report.
-    pub fn with_message<M: ToString>(mut self, msg: M) -> Self {
-        self.msg = Some(msg.to_string());
-        self
-    }
-
-    /// Set the note of this report.
-    pub fn set_note<N: ToString>(&mut self, note: N) {
-        self.note = Some(note.to_string());
-    }
-
-    /// Set the note of this report.
-    pub fn with_note<N: ToString>(mut self, note: N) -> Self {
-        self.set_note(note);
-        self
-    }
-
-    /// Set the help message of this report.
-    pub fn set_help<N: ToString>(&mut self, note: N) {
-        self.help = Some(note.to_string());
-    }
-
-    /// Set the help message of this report.
-    pub fn with_help<N: ToString>(mut self, note: N) -> Self {
-        self.set_help(note);
-        self
-    }
-
-    /// Add a label to the report.
-    pub fn add_label(&mut self, label: Label<S>) {
-        self.add_labels(std::iter::once(label));
-    }
-
-    /// Add multiple labels to the report.
-    pub fn add_labels<L: IntoIterator<Item=Label<S>>>(&mut self, labels: L) {
-        let config = &self.config; // This would not be necessary in Rust 2021 edition
-        self.labels.extend(labels.into_iter().map(|mut label| {
-            label.color = config.filter_color(label.color);
-            label
-        }));
-    }
-
-    /// Add a label to the report.
-    pub fn with_label(mut self, label: Label<S>) -> Self {
-        self.add_label(label);
-        self
-    }
-
-    /// Add multiple labels to the report.
-    pub fn with_labels<L: IntoIterator<Item=Label<S>>>(mut self, labels: L) -> Self {
-        self.add_labels(labels);
-        self
-    }
-
-    /// Use the given [`Config`] to determine diagnostic attributes.
-    pub fn with_config(mut self, config: Config) -> Self {
-        self.config = config;
-        self
-    }
-
-    /// Finish building the [`Report`].
-    pub fn finish(self) -> Report<'a, S> {
-        Report {
-            kind: self.kind,
-            code: self.code,
-            msg: self.msg,
-            note: self.note,
-            help: self.help,
-            location: self.location,
-            labels: self.labels,
-            config: self.config,
-        }
-    }
-}
-
-impl<'a, S: Span> Debug for ReportBuilder<'a, S> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ReportBuilder")
-            .field("kind", &self.kind)
-            .field("code", &self.code)
-            .field("msg", &self.msg)
-            .field("note", &self.note)
-            .field("help", &self.help)
-            .field("config", &self.config)
-            .finish()
-    }
 }
 
 /// The attachment point of inline label arrows
@@ -455,9 +351,7 @@ impl Config {
         self
     }
 
-    fn error_color(&self) -> Option<Color> { Some(Color::Red).filter(|_| self.color) }
-    fn warning_color(&self) -> Option<Color> { Some(Color::Yellow).filter(|_| self.color) }
-    fn advice_color(&self) -> Option<Color> { Some(Color::Fixed(147)).filter(|_| self.color) }
+
     fn margin_color(&self) -> Option<Color> { Some(Color::Fixed(246)).filter(|_| self.color) }
     fn skipped_margin_color(&self) -> Option<Color> { Some(Color::Fixed(240)).filter(|_| self.color) }
     fn unimportant_color(&self) -> Option<Color> { Some(Color::Fixed(249)).filter(|_| self.color) }
