@@ -133,8 +133,8 @@ impl<S> Label<S> {
 }
 
 /// A type representing a diagnostic that is ready to be written to output.
-pub struct Report<'a, S: Span = Range<usize>> {
-    kind: ReportKind<'a>,
+pub struct Report<S: Span = Range<usize>> {
+    kind: Box<dyn ReportLevel>,
     code: Option<String>,
     msg: Option<String>,
     note: Option<String>,
@@ -144,9 +144,9 @@ pub struct Report<'a, S: Span = Range<usize>> {
     config: Config,
 }
 
-impl<S: Span> Report<'_, S> {
+impl<S: Span> Report<S> {
     /// Begin building a new [`Report`].
-    pub fn new<Id: Into<<S::SourceId as ToOwned>::Owned>>(kind: ReportKind, src_id: Id, offset: usize) -> ReportBuilder<S> {
+    pub fn new<Id: Into<<S::SourceId as ToOwned>::Owned>>(kind: impl ReportLevel, src_id: Id, offset: usize) -> ReportBuilder<S> {
         ReportBuilder {
             kind,
             code: None,
@@ -186,16 +186,51 @@ impl<'a, S: Span> Debug for Report<'a, S> {
     }
 }
 
-// @trace 0
-// @print 100
-// @blame 150
-// @risky 175
-// @alert 200
-// @error 250
-// @fatal 255
+
+
+pub trait ReportLevel: Display {
+    fn level(&self) -> u8;
+}
+
+impl Display for ReportKind {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        match self {
+            ReportKind::Error => f.write_str("error"),
+            ReportKind::Alert => f.write_str("alert"),
+            ReportKind::Risky => f.write_str("risky"),
+            ReportKind::Trace => f.write_str("trace"),
+            ReportKind::Print => f.write_str("print"),
+            ReportKind::Blame => f.write_str("blame"),
+            ReportKind::Fatal => f.write_str("fatal"),
+        }
+    }
+}
+
+impl ReportLevel for ReportKind {
+    fn level(&self) -> u8 {
+        match self {
+            ReportKind::Trace => 0,
+            ReportKind::Print => 100,
+            ReportKind::Blame => 150,
+            ReportKind::Risky => 175,
+            ReportKind::Alert => 200,
+            ReportKind::Error => 250,
+            ReportKind::Fatal => 255,
+        }
+    }
+}
+
+
+/// @trace 0
+/// @print 100
+/// @blame 150
+/// @risky 175
+/// @alert 200
+/// @error 250
+/// @fatal 255
 /// A type that defines the kind of report being produced.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum ReportKind<'a> {
+pub enum ReportKind {
     /// The report is advice to the user about a potential anti-pattern of other benign issues.
     Trace,
     /// The report is advice to the user about a potential anti-pattern of other benign issues.
@@ -212,24 +247,8 @@ pub enum ReportKind<'a> {
     Error,
     /// Fatal error that caused this program to terminate
     Fatal,
-    /// The report is of a kind not built into Ariadne.
-    Custom(&'a str, Color),
 }
 
-impl Display for ReportKind<'_> {
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        match self {
-            ReportKind::Error => write!(f, "Error"),
-            ReportKind::Alert => write!(f, "Warning"),
-            ReportKind::Risky => write!(f, "Advice"),
-            ReportKind::Trace => {}
-            ReportKind::Print => {}
-            ReportKind::Blame => {}
-            ReportKind::Fatal => {}
-            ReportKind::Custom(s, _) => write!(f, "{}", s),
-        }
-    }
-}
 
 /// A type used to build a [`Report`].
 pub struct ReportBuilder<'a, S: Span> {
@@ -289,9 +308,12 @@ impl<'a, S: Span> ReportBuilder<'a, S> {
     }
 
     /// Add multiple labels to the report.
-    pub fn add_labels<L: IntoIterator<Item = Label<S>>>(&mut self, labels: L) {
+    pub fn add_labels<L: IntoIterator<Item=Label<S>>>(&mut self, labels: L) {
         let config = &self.config; // This would not be necessary in Rust 2021 edition
-        self.labels.extend(labels.into_iter().map(|mut label| { label.color = config.filter_color(label.color); label }));
+        self.labels.extend(labels.into_iter().map(|mut label| {
+            label.color = config.filter_color(label.color);
+            label
+        }));
     }
 
     /// Add a label to the report.
@@ -301,7 +323,7 @@ impl<'a, S: Span> ReportBuilder<'a, S> {
     }
 
     /// Add multiple labels to the report.
-    pub fn with_labels<L: IntoIterator<Item = Label<S>>>(mut self, labels: L) -> Self {
+    pub fn with_labels<L: IntoIterator<Item=Label<S>>>(mut self, labels: L) -> Self {
         self.add_labels(labels);
         self
     }
@@ -379,35 +401,59 @@ impl Config {
     /// The alternative to this is to insert crossing characters. However, these interact poorly with label colours.
     ///
     /// If unspecified, this defaults to [`false`].
-    pub fn with_cross_gap(mut self, cross_gap: bool) -> Self { self.cross_gap = cross_gap; self }
+    pub fn with_cross_gap(mut self, cross_gap: bool) -> Self {
+        self.cross_gap = cross_gap;
+        self
+    }
     /// Where should inline labels attach to their spans?
     ///
     /// If unspecified, this defaults to [`LabelAttach::Middle`].
-    pub fn with_label_attach(mut self, label_attach: LabelAttach) -> Self { self.label_attach = label_attach; self }
+    pub fn with_label_attach(mut self, label_attach: LabelAttach) -> Self {
+        self.label_attach = label_attach;
+        self
+    }
     /// Should the report remove gaps to minimise used space?
     ///
     /// If unspecified, this defaults to [`false`].
-    pub fn with_compact(mut self, compact: bool) -> Self { self.compact = compact; self }
+    pub fn with_compact(mut self, compact: bool) -> Self {
+        self.compact = compact;
+        self
+    }
     /// Should underlines be used for label span where possible?
     ///
     /// If unspecified, this defaults to [`true`].
-    pub fn with_underlines(mut self, underlines: bool) -> Self { self.underlines = underlines; self }
+    pub fn with_underlines(mut self, underlines: bool) -> Self {
+        self.underlines = underlines;
+        self
+    }
     /// Should arrows be used to point to the bounds of multi-line spans?
     ///
     /// If unspecified, this defaults to [`true`].
-    pub fn with_multiline_arrows(mut self, multiline_arrows: bool) -> Self { self.multiline_arrows = multiline_arrows; self }
+    pub fn with_multiline_arrows(mut self, multiline_arrows: bool) -> Self {
+        self.multiline_arrows = multiline_arrows;
+        self
+    }
     /// Should colored output should be enabled?
     ///
     /// If unspecified, this defaults to [`true`].
-    pub fn with_color(mut self, color: bool) -> Self { self.color = color; self }
+    pub fn with_color(mut self, color: bool) -> Self {
+        self.color = color;
+        self
+    }
     /// How many characters width should tab characters be?
     ///
     /// If unspecified, this defaults to `4`.
-    pub fn with_tab_width(mut self, tab_width: usize) -> Self { self.tab_width = tab_width; self }
+    pub fn with_tab_width(mut self, tab_width: usize) -> Self {
+        self.tab_width = tab_width;
+        self
+    }
     /// What character set should be used to display dynamic elements such as boxes and arrows?
     ///
     /// If unspecified, this defaults to [`CharSet::Unicode`].
-    pub fn with_char_set(mut self, char_set: CharSet) -> Self { self.char_set = char_set; self }
+    pub fn with_char_set(mut self, char_set: CharSet) -> Self {
+        self.char_set = char_set;
+        self
+    }
 
     fn error_color(&self) -> Option<Color> { Some(Color::Red).filter(|_| self.color) }
     fn warning_color(&self) -> Option<Color> { Some(Color::Yellow).filter(|_| self.color) }
@@ -424,8 +470,8 @@ impl Config {
             '\t' => {
                 // Find the column that the tab should end at
                 let tab_end = (col / self.tab_width + 1) * self.tab_width;
-                (' ',  tab_end - col)
-            },
+                (' ', tab_end - col)
+            }
             c if c.is_whitespace() => (' ', 1),
             _ => (c, c.width().unwrap_or(1)),
         }
