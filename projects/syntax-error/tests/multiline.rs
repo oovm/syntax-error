@@ -1,4 +1,4 @@
-use ariadne::{Report, ReportKind, Label, Source, Color, ColorGenerator, Fmt};
+use syntax_error::{Report, ReportKind, Label, Source, Color, ColorGenerator, Fmt};
 
 fn main() {
     let mut colors = ColorGenerator::new();
@@ -9,7 +9,7 @@ fn main() {
     let out = Color::Fixed(81);
     let out2= colors.next();
 
-    Report::build(ReportKind::Error, "sample.tao", 12)
+    Report::new(ReportKind::Error, "sample.tao", 12)
         .with_code(3)
         .with_message(format!("Incompatible types"))
         .with_label(Label::new(("sample.tao", 32..33))
