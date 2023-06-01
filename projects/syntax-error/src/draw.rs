@@ -87,28 +87,12 @@ pub enum StreamType {
     Stderr,
 }
 
-#[cfg(feature = "concolor")]
-impl From<StreamType> for concolor::Stream {
-    fn from(s: StreamType) -> Self {
-        match s {
-            StreamType::Stdout => concolor::Stream::Stdout,
-            StreamType::Stderr => concolor::Stream::Stderr,
-        }
-    }
-}
-
 /// A trait used to add formatting attributes to displayable items intended to be written to a
 /// particular stream (`stdout` or `stderr`).
 ///
 /// Attributes specified through this trait are not composable (i.e: the behaviour of two nested attributes each with a
 /// conflicting attribute is left unspecified).
 pub trait StreamAwareFmt: Sized {
-    #[cfg(feature = "concolor")]
-    /// Returns true if color is enabled for the given stream.
-    fn color_enabled_for(s: StreamType) -> bool {
-        concolor::get(s.into()).color()
-    }
-
     #[cfg(not(feature = "concolor"))]
     #[doc(hidden)]
     fn color_enabled_for(_: StreamType) -> bool {
@@ -164,26 +148,6 @@ pub trait Fmt: Sized {
 }
 
 impl<T: Display> Fmt for T {}
-
-/// A trait used to add formatting attributes to displayable items intended to be written to `stdout`.
-///
-/// Attributes specified through this trait are not composable (i.e: the behaviour of two nested attributes each with a
-/// conflicting attribute is left unspecified).
-#[cfg(any(feature = "concolor", doc))]
-pub trait StdoutFmt: StreamAwareFmt {
-    /// Give this value the specified foreground colour, when color is enabled for `stdout`.
-    fn fg<C: Into<Option<Color>>>(self, color: C) -> Foreground<Self> {
-        StreamAwareFmt::fg(self, color, StreamType::Stdout)
-    }
-
-    /// Give this value the specified background colour, when color is enabled for `stdout`.
-    fn bg<C: Into<Option<Color>>>(self, color: C) -> Background<Self> {
-        StreamAwareFmt::bg(self, color, StreamType::Stdout)
-    }
-}
-
-#[cfg(feature = "concolor")]
-impl<T: Display> StdoutFmt for T {}
 
 #[derive(Copy, Clone, Debug)]
 pub struct Foreground<T>(T, Option<Color>);

@@ -140,8 +140,7 @@ impl Source {
     /// [`Source::line`]).
     pub fn get_line_range(&self, span: &Range<usize>) -> Range<usize> {
         let start = self.get_offset_line(span.start).map_or(0, |(_, l, _)| l);
-        let end =
-            self.get_offset_line(span.end.saturating_sub(1).max(span.start)).map_or(self.lines.len(), |(_, l, _)| l + 1);
+        let end = self.get_offset_line(span.end.saturating_sub(1).max(span.start)).map_or(self.lines.len(), |(_, l, _)| l + 1);
         start..end
     }
 }
@@ -163,7 +162,7 @@ impl FileCache {
         let name_hash = {
             let mut hasher = hasher.build_hasher();
             path.hash(&mut hasher);
-            FileID { id: hasher.finish() }
+            FileID { hash: hasher.finish() }
         };
         let text = std::fs::read_to_string(path)?;
         let source = Source::from(text);
@@ -181,7 +180,7 @@ impl FileCache {
         let name_hash = {
             let mut hasher = hasher.build_hasher();
             name.hash(&mut hasher);
-            FileID { id: hasher.finish() }
+            FileID { hash: hasher.finish() }
         };
         let mut source = Source::from(text.to_string());
         source.file_name = name;

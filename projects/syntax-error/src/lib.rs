@@ -25,19 +25,19 @@ use unicode_width::UnicodeWidthChar;
 /// A type representing a single line of a [`Source`].
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct FileID {
-    id: u64,
+    hash: u64,
 }
 
 impl Display for FileID {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "FileID({})", self.id)
+        write!(f, "FileID({})", self.hash)
     }
 }
 
 impl FileID {
     /// Create a new [`FileID`] with the given ID.
     pub unsafe fn new(id: u64) -> Self {
-        Self { id }
+        Self { hash: id }
     }
     /// Create a new [`FileID`] with the given ID.
     pub fn with_range(self, range: Range<usize>) -> FileSpan {
@@ -55,7 +55,7 @@ pub struct FileSpan {
 
 impl Debug for FileID {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("FileID").field("id", &self.id).finish()
+        f.debug_struct("FileID").field("id", &self.hash).finish()
     }
 }
 
@@ -234,7 +234,7 @@ impl Report {
 
     /// Write this diagnostic out to `stderr`.
     pub fn eprint(&self, cache: FileCache) -> std::io::Result<()> {
-        self.write(cache, std::io::stderr())
+        self.write(cache, std::io::stderr().lock())
     }
 
     /// Write this diagnostic out to `stdout`.
@@ -242,7 +242,7 @@ impl Report {
     /// In most cases, [`Report::eprint`] is the
     /// ['more correct'](https://en.wikipedia.org/wiki/Standard_streams#Standard_error_(stderr)) function to use.
     pub fn print(&self, cache: FileCache) -> std::io::Result<()> {
-        self.write_for_stdout(cache, std::io::stdout())
+        self.write_for_stdout(cache, std::io::stdout().lock())
     }
 }
 

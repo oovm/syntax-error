@@ -1,5 +1,5 @@
 use crate::{FileCache, FileID};
-use std::{io, ops::Range};
+use std::ops::Range;
 
 use super::{
     draw::{self, StreamAwareFmt, StreamType},
@@ -73,19 +73,19 @@ impl Report {
     /// `stderr`.  If you are printing to `stdout`, use the [`write_for_stdout`](Self::write_for_stdout) method instead.
     ///
     /// If you wish to write to `stderr` or `stdout`, you can do so via [`Report::eprint`] or [`Report::print`] respectively.
-    pub fn write<W: Write>(&self, cache: FileCache, w: W) -> io::Result<()> {
+    pub fn write<W: Write>(&self, cache: FileCache, w: W) -> std::io::Result<()> {
         self.write_for_stream(cache, w, StreamType::Stderr)
     }
 
     /// Write this diagnostic to an implementor of [`Write`], assuming that the output is ultimately going to be printed
     /// to `stdout`.
-    pub fn write_for_stdout<W: Write>(&self, cache: FileCache, w: W) -> io::Result<()> {
+    pub fn write_for_stdout<W: Write>(&self, cache: FileCache, w: W) -> std::io::Result<()> {
         self.write_for_stream(cache, w, StreamType::Stdout)
     }
 
     /// Write this diagnostic to an implementor of [`Write`], assuming that the output is ultimately going to be printed
     /// to the given output stream (`stdout` or `stderr`).
-    fn write_for_stream<W: Write>(&self, mut cache: FileCache, mut w: W, s: StreamType) -> io::Result<()> {
+    fn write_for_stream<W: Write>(&self, mut cache: FileCache, mut w: W, s: StreamType) -> std::io::Result<()> {
         let draw = match self.config.char_set {
             CharSet::Unicode => draw::Characters::unicode(),
             CharSet::Ascii => draw::Characters::ascii(),
