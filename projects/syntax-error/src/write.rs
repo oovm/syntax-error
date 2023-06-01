@@ -1,5 +1,5 @@
-use crate::{FileID, FileSpan};
-use std::{borrow::Borrow, io, ops::Range};
+use crate::{FileCache, FileID};
+use std::{io, ops::Range};
 
 use super::{
     draw::{self, StreamAwareFmt, StreamType},
@@ -31,13 +31,13 @@ struct SourceGroup<'a> {
 }
 
 impl Report {
-    fn get_source_groups(&self, cache: &mut impl Cache) -> Vec<SourceGroup> {
+    fn get_source_groups(&self, cache: &mut FileCache) -> Vec<SourceGroup> {
         let mut groups = Vec::new();
         for label in self.labels.iter() {
-            let src_display = cache.display(label.span.source());
             let src = match cache.fetch(label.span.source()) {
                 Ok(src) => src,
                 Err(e) => {
+                    let src_display = cache.display(label.span.source());
                     eprintln!("Unable to fetch source '{}': {:?}", Show(src_display), e);
                     continue;
                 }
@@ -73,19 +73,19 @@ impl Report {
     /// `stderr`.  If you are printing to `stdout`, use the [`write_for_stdout`](Self::write_for_stdout) method instead.
     ///
     /// If you wish to write to `stderr` or `stdout`, you can do so via [`Report::eprint`] or [`Report::print`] respectively.
-    pub fn write<C: Cache, W: Write>(&self, cache: C, w: W) -> io::Result<()> {
+    pub fn write<W: Write>(&self, cache: FileCache, w: W) -> io::Result<()> {
         self.write_for_stream(cache, w, StreamType::Stderr)
     }
 
     /// Write this diagnostic to an implementor of [`Write`], assuming that the output is ultimately going to be printed
     /// to `stdout`.
-    pub fn write_for_stdout<C: Cache, W: Write>(&self, cache: C, w: W) -> io::Result<()> {
+    pub fn write_for_stdout<W: Write>(&self, cache: FileCache, w: W) -> io::Result<()> {
         self.write_for_stream(cache, w, StreamType::Stdout)
     }
 
     /// Write this diagnostic to an implementor of [`Write`], assuming that the output is ultimately going to be printed
     /// to the given output stream (`stdout` or `stderr`).
-    fn write_for_stream<C: Cache, W: Write>(&self, mut cache: C, mut w: W, s: StreamType) -> io::Result<()> {
+    fn write_for_stream<W: Write>(&self, mut cache: FileCache, mut w: W, s: StreamType) -> io::Result<()> {
         let draw = match self.config.char_set {
             CharSet::Unicode => draw::Characters::unicode(),
             CharSet::Ascii => draw::Characters::ascii(),
@@ -142,7 +142,7 @@ impl Report {
             let line_range = src.get_line_range(&span);
 
             // File name & reference
-            let location = if src_id == self.location.0.borrow() { self.location.1 } else { labels[0].label.span.start() };
+            let location = if src_id == &self.location.0 { self.location.1 } else { labels[0].label.span.start() };
             let (line_no, col_no) = src
                 .get_offset_line(location)
                 .map(|(_, idx, col)| (format!("{}", idx + 1), format!("{}", col + 1)))
@@ -403,7 +403,7 @@ impl Report {
 
                 // Skip this line if we don't have labels for it
                 if line_labels.len() == 0 && margin_label.is_none() {
-                    let within_label = multi_labels.iter().any(|label| label.span.contains(line.span().start()));
+                    let within_label = multi_labels.iter().any(|label| label.span.contains(line.span().start));
                     if !is_ellipsis && within_label {
                         is_ellipsis = true;
                     }

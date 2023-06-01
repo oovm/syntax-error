@@ -1,6 +1,6 @@
 [package]
 name = "syntax-error"
-version = "0.0.1"
+version = "0.0.3"
 authors = ["Aster <192607617@qq.com>"]
 description = "Syntax error report"
 repository = "https://github.com/oovm/sub_projects"

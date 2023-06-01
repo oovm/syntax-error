@@ -8,7 +8,7 @@ mod write;
 
 pub use crate::{
     draw::{ColorGenerator, Fmt},
-    source::{sources, FileCache, FnCache, Line, Source},
+    source::{FileCache, Line, Source},
 };
 use std::fmt::{Debug, Display, Formatter};
 pub use yansi::Color;
@@ -17,14 +17,15 @@ use crate::display::*;
 use std::{
     cmp::{Eq, PartialEq},
     hash::Hash,
-    io::{self, Write},
+    io::Write,
     ops::Range,
 };
 use unicode_width::UnicodeWidthChar;
 
+/// A type representing a single line of a [`Source`].
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct FileID {
-    id: u32,
+    id: u64,
 }
 
 impl Display for FileID {
@@ -34,14 +35,17 @@ impl Display for FileID {
 }
 
 impl FileID {
-    pub fn new(id: u32) -> Self {
+    /// Create a new [`FileID`] with the given ID.
+    pub unsafe fn new(id: u64) -> Self {
         Self { id }
     }
+    /// Create a new [`FileID`] with the given ID.
     pub fn with_range(self, range: Range<usize>) -> FileSpan {
         FileSpan { start: range.start, end: range.end, file: self }
     }
 }
 
+/// A type representing a single line of a [`Source`].
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct FileSpan {
     start: usize,
@@ -62,25 +66,32 @@ impl Debug for FileSpan {
 }
 
 impl FileSpan {
-    pub fn new(start: usize, end: usize) -> Self {
-        Self { start, end, file: FileID { id: 0 } }
+    /// Create a new span with the given start and end offsets, and the given file.
+    pub unsafe fn new(start: usize, end: usize, file: FileID) -> Self {
+        Self { start, end, file }
     }
+    /// Create a new span with the given start and end offsets, and the given file.
     pub fn get_range(&self) -> Range<usize> {
         self.start..self.end
     }
+    /// Create a new span with the given start and end offsets, and the given file.
     pub fn set_range(&mut self, range: Range<usize>) {
         self.start = range.start;
         self.end = range.end;
     }
+    /// Create a new span with the given start and end offsets, and the given file.
     pub fn with_range(self, range: Range<usize>) -> Self {
         Self { start: range.start, end: range.end, ..self }
     }
+    /// Create a new span with the given start and end offsets, and the given file.
     pub fn get_file(&self) -> FileID {
         self.file
     }
+    /// Create a new span with the given start and end offsets, and the given file.
     pub fn set_file(&mut self, file: FileID) {
         self.file = file;
     }
+    /// Create a new span with the given start and end offsets, and the given file.
     pub fn with_file(self, file: FileID) -> Self {
         Self { file, ..self }
     }
@@ -128,20 +139,6 @@ impl Span for FileSpan {
         self.start
     }
 
-    fn end(&self) -> usize {
-        self.end
-    }
-}
-
-impl Span for Range<usize> {
-    type SourceId = ();
-
-    fn source(&self) -> &Self::SourceId {
-        &()
-    }
-    fn start(&self) -> usize {
-        self.start
-    }
     fn end(&self) -> usize {
         self.end
     }
@@ -236,16 +233,16 @@ impl Report {
     }
 
     /// Write this diagnostic out to `stderr`.
-    pub fn eprint<C: Cache>(&self, cache: C) -> io::Result<()> {
-        self.write(cache, io::stderr())
+    pub fn eprint(&self, cache: FileCache) -> std::io::Result<()> {
+        self.write(cache, std::io::stderr())
     }
 
     /// Write this diagnostic out to `stdout`.
     ///
     /// In most cases, [`Report::eprint`] is the
     /// ['more correct'](https://en.wikipedia.org/wiki/Standard_streams#Standard_error_(stderr)) function to use.
-    pub fn print<C: Cache>(&self, cache: C) -> io::Result<()> {
-        self.write_for_stdout(cache, io::stdout())
+    pub fn print(&self, cache: FileCache) -> std::io::Result<()> {
+        self.write_for_stdout(cache, std::io::stdout())
     }
 }
 

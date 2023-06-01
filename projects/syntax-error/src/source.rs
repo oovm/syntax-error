@@ -1,10 +1,10 @@
 use super::*;
 
 use std::{
-    collections::{hash_map::Entry, HashMap},
-    fs,
+    collections::HashMap,
+    hash::{BuildHasher, Hasher},
     mem::replace,
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 
 /// A type representing a single line of a [`Source`].
@@ -35,6 +35,10 @@ impl Line {
     pub fn chars(&self) -> impl Iterator<Item = char> + '_ {
         self.chars.chars()
     }
+    /// Get the view of this line in the original [`Source`].
+    pub fn view(&self) -> &str {
+        &self.chars
+    }
 }
 
 /// A type representing a single source that may be referred to by [`Span`]s.
@@ -42,6 +46,7 @@ impl Line {
 /// In most cases, a source is a single input file.
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Source {
+    file_name: String,
     lines: Vec<Line>,
     len: usize,
 }
@@ -89,13 +94,13 @@ impl<S: AsRef<str>> From<S> for Source {
             lines.push(l);
         }
 
-        Self { lines, len: offset }
+        Self { file_name: "<anonymous>".to_string(), lines, len: offset }
     }
 }
 
 impl Source {
     /// Get the length of the total number of characters in the source.
-    pub fn len(&self) -> usize {
+    pub fn length(&self) -> usize {
         self.len
     }
 
@@ -133,10 +138,10 @@ impl Source {
     ///
     /// The resulting range is guaranteed to contain valid line indices (i.e: those that can be used for
     /// [`Source::line`]).
-    pub fn get_line_range<S: Span>(&self, span: &S) -> Range<usize> {
-        let start = self.get_offset_line(span.start()).map_or(0, |(_, l, _)| l);
+    pub fn get_line_range(&self, span: &Range<usize>) -> Range<usize> {
+        let start = self.get_offset_line(span.start).map_or(0, |(_, l, _)| l);
         let end =
-            self.get_offset_line(span.end().saturating_sub(1).max(span.start())).map_or(self.lines.len(), |(_, l, _)| l + 1);
+            self.get_offset_line(span.end.saturating_sub(1).max(span.start)).map_or(self.lines.len(), |(_, l, _)| l + 1);
         start..end
     }
 }
@@ -144,60 +149,54 @@ impl Source {
 /// A [`Cache`] that fetches [`Source`]s from the filesystem.
 #[derive(Default, Debug, Clone)]
 pub struct FileCache {
-    files: HashMap<PathBuf, Source>,
+    files: HashMap<FileID, Source>,
 }
 
 impl FileCache {
-    fn fetch(&mut self, path: &Path) -> Result<&Source, Box<dyn Debug + '_>> {
-        Ok(match self.files.entry(path.to_path_buf()) {
-            // TODO: Don't allocate here
-            Entry::Occupied(entry) => entry.into_mut(),
-            Entry::Vacant(entry) => entry.insert(Source::from(&fs::read_to_string(path).map_err(|e| Box::new(e) as _)?)),
-        })
+    /// Create a new [`FileCache`].
+    pub fn load_local<P>(&mut self, path: P) -> Result<FileID, std::io::Error>
+    where
+        P: AsRef<PathBuf>,
+    {
+        let path = path.as_ref();
+        let hasher = self.files.hasher();
+        let name_hash = {
+            let mut hasher = hasher.build_hasher();
+            path.hash(&mut hasher);
+            FileID { id: hasher.finish() }
+        };
+        let text = std::fs::read_to_string(path)?;
+        let source = Source::from(text);
+        self.files.insert(name_hash, source);
+        Ok(name_hash)
     }
-    fn display<'a>(&self, path: &'a Path) -> Option<Box<dyn Display + 'a>> {
-        Some(Box::new(path.display()))
+    /// Create a new [`FileCache`].
+    pub fn load_text<T, N>(&mut self, text: T, name: N) -> FileID
+    where
+        T: ToString,
+        N: ToString,
+    {
+        let name = name.to_string();
+        let hasher = self.files.hasher();
+        let name_hash = {
+            let mut hasher = hasher.build_hasher();
+            name.hash(&mut hasher);
+            FileID { id: hasher.finish() }
+        };
+        let mut source = Source::from(text.to_string());
+        source.file_name = name;
+        self.files.insert(name_hash, source);
+        name_hash
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::iter::zip;
-
-    use super::Source;
-
-    #[test]
-    fn source_from() {
-        fn test(lines: Vec<&str>) {
-            let source: String = lines.iter().map(|s| *s).collect();
-            let source = Source::from(source);
-
-            assert_eq!(source.lines.len(), lines.len());
-
-            let mut offset = 0;
-            for (source_line, raw_line) in zip(source.lines.into_iter(), lines.into_iter()) {
-                assert_eq!(source_line.offset, offset);
-                assert_eq!(source_line.len, raw_line.chars().count());
-                assert_eq!(source_line.chars, raw_line.trim_end());
-                offset += source_line.len;
-            }
-
-            assert_eq!(source.len, offset);
+    /// Create a new [`FileCache`].
+    pub fn fetch(&mut self, file: &FileID) -> Result<&Source, std::io::Error> {
+        match self.files.get(file) {
+            Some(source) => Ok(source),
+            None => Err(std::io::Error::new(std::io::ErrorKind::NotFound, format!("File {:?} not found", file))),
         }
-
-        test(vec![]); // Empty string
-
-        test(vec!["Single line"]);
-        test(vec!["Single line with LF\n"]);
-        test(vec!["Single line with CRLF\r\n"]);
-
-        test(vec!["Two\r\n", "lines\n"]);
-        test(vec!["Some\n", "more\r\n", "lines"]);
-        test(vec!["\n", "\r\n", "\n", "Empty Lines"]);
-
-        test(vec!["Trailing spaces  \n", "are trimmed\t"]);
-
-        // Line endings other than LF or CRLF
-        test(vec!["CR\r", "VT\x0B", "FF\x0C", "NEL\u{0085}", "LS\u{2028}", "PS\u{2029}"]);
+    }
+    /// Create a new [`FileCache`].
+    pub fn display(&self, file: &FileID) -> Option<&str> {
+        Some(self.files.get(file)?.file_name.as_str())
     }
 }

@@ -1,4 +1,4 @@
-use syntax_error::{sources, ColorGenerator, FileID, FileSpan, Fmt, Label, Report, ReportKind};
+use super::*;
 
 #[test]
 fn main() {
@@ -9,8 +9,9 @@ fn main() {
     let b = colors.next();
     let c = colors.next();
 
-    let file_a = FileID::new(1);
-    let file_b = FileID::new(2);
+    let mut store = FileCache::default();
+    let file_a = store.load_text(include_str!("a.tao"), "a.tao");
+    let file_b = store.load_text(include_str!("b.tao"), "b.tao");
 
     Report::new(ReportKind::Error, file_b, 10)
         .with_code(3)
@@ -34,6 +35,6 @@ fn main() {
         )
         .with_note(format!("{} is a number and can only be added to other numbers", "Nat".fg(a)))
         .finish()
-        .print(sources(vec![(file_a, include_str!("a.tao")), (file_b, include_str!("b.tao"))]))
+        .print(store)
         .unwrap();
 }
