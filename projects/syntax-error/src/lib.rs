@@ -1,5 +1,5 @@
 #![doc = include_str!("../README.md")]
-#![deny(missing_docs)]
+#![warn(missing_docs)]
 
 mod display;
 mod draw;
@@ -13,17 +13,68 @@ pub use crate::{
 use std::fmt::{Debug, Display, Formatter};
 pub use yansi::Color;
 
-#[cfg(any(feature = "concolor", doc))]
-pub use crate::draw::StdoutFmt;
-
 use crate::display::*;
 use std::{
     cmp::{Eq, PartialEq},
+    fs::File,
     hash::Hash,
     io::{self, Write},
+    num::NonZeroU32,
     ops::Range,
 };
 use unicode_width::UnicodeWidthChar;
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+pub struct FileID {
+    id: u32,
+}
+
+impl Display for FileID {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "FileID({})", self.id)
+    }
+}
+
+impl FileID {
+    pub fn new(id: u32) -> Self {
+        Self { id }
+    }
+    pub fn with_range(self, range: Range<usize>) -> FileSpan {
+        FileSpan { start: range.start, end: range.end, file: self }
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub struct FileSpan {
+    start: usize,
+    end: usize,
+    file: FileID,
+}
+
+impl FileSpan {
+    pub fn new(start: usize, end: usize) -> Self {
+        Self { start, end, file: FileID { id: 0 } }
+    }
+    pub fn get_range(&self) -> Range<usize> {
+        self.start..self.end
+    }
+    pub fn set_range(&mut self, range: Range<usize>) {
+        self.start = range.start;
+        self.end = range.end;
+    }
+    pub fn with_range(self, range: Range<usize>) -> Self {
+        Self { start: range.start, end: range.end, ..self }
+    }
+    pub fn get_file(&self) -> FileID {
+        self.file
+    }
+    pub fn set_file(&mut self, file: FileID) {
+        self.file = file;
+    }
+    pub fn with_file(self, file: FileID) -> Self {
+        Self { file, ..self }
+    }
+}
 
 /// A trait implemented by spans within a character-based source.
 pub trait Span {
@@ -56,6 +107,22 @@ pub trait Span {
     }
 }
 
+impl Span for FileSpan {
+    type SourceId = FileID;
+
+    fn source(&self) -> &Self::SourceId {
+        &self.file
+    }
+
+    fn start(&self) -> usize {
+        self.start
+    }
+
+    fn end(&self) -> usize {
+        self.end
+    }
+}
+
 impl Span for Range<usize> {
     type SourceId = ();
 
@@ -67,20 +134,6 @@ impl Span for Range<usize> {
     }
     fn end(&self) -> usize {
         self.end
-    }
-}
-
-impl<Id: Debug + Hash + PartialEq + Eq + ToOwned> Span for (Id, Range<usize>) {
-    type SourceId = Id;
-
-    fn source(&self) -> &Self::SourceId {
-        &self.0
-    }
-    fn start(&self) -> usize {
-        self.1.start
-    }
-    fn end(&self) -> usize {
-        self.1.end
     }
 }
 
