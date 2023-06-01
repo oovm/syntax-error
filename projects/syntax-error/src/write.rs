@@ -3,7 +3,7 @@ use std::{borrow::Borrow, io, ops::Range};
 
 use super::{
     draw::{self, StreamAwareFmt, StreamType},
-    Cache, CharSet, Label, LabelAttach, Report, Show, Span, Write,
+    CharSet, Label, LabelAttach, Report, Show, Span, Write,
 };
 
 // A WARNING, FOR ALL YE WHO VENTURE IN HERE
@@ -31,7 +31,7 @@ struct SourceGroup<'a> {
 }
 
 impl Report {
-    fn get_source_groups(&self, cache: &mut impl Cache<FileID>) -> Vec<SourceGroup> {
+    fn get_source_groups(&self, cache: &mut impl Cache) -> Vec<SourceGroup> {
         let mut groups = Vec::new();
         for label in self.labels.iter() {
             let src_display = cache.display(label.span.source());
@@ -73,19 +73,19 @@ impl Report {
     /// `stderr`.  If you are printing to `stdout`, use the [`write_for_stdout`](Self::write_for_stdout) method instead.
     ///
     /// If you wish to write to `stderr` or `stdout`, you can do so via [`Report::eprint`] or [`Report::print`] respectively.
-    pub fn write<C: Cache<FileID>, W: Write>(&self, cache: C, w: W) -> io::Result<()> {
+    pub fn write<C: Cache, W: Write>(&self, cache: C, w: W) -> io::Result<()> {
         self.write_for_stream(cache, w, StreamType::Stderr)
     }
 
     /// Write this diagnostic to an implementor of [`Write`], assuming that the output is ultimately going to be printed
     /// to `stdout`.
-    pub fn write_for_stdout<C: Cache<FileID>, W: Write>(&self, cache: C, w: W) -> io::Result<()> {
+    pub fn write_for_stdout<C: Cache, W: Write>(&self, cache: C, w: W) -> io::Result<()> {
         self.write_for_stream(cache, w, StreamType::Stdout)
     }
 
     /// Write this diagnostic to an implementor of [`Write`], assuming that the output is ultimately going to be printed
     /// to the given output stream (`stdout` or `stderr`).
-    fn write_for_stream<C: Cache<FileID>, W: Write>(&self, mut cache: C, mut w: W, s: StreamType) -> io::Result<()> {
+    fn write_for_stream<C: Cache, W: Write>(&self, mut cache: C, mut w: W, s: StreamType) -> io::Result<()> {
         let draw = match self.config.char_set {
             CharSet::Unicode => draw::Characters::unicode(),
             CharSet::Ascii => draw::Characters::ascii(),

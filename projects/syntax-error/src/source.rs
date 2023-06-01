@@ -7,37 +7,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// A trait implemented by [`Source`] caches.
-pub trait Cache<Id: ?Sized> {
-    /// Fetch the [`Source`] identified by the given ID, if possible.
-    // TODO: Don't box
-    fn fetch(&mut self, id: &Id) -> Result<&Source, Box<dyn Debug + '_>>;
-
-    /// Display the given ID. as a single inline value.
-    ///
-    /// This function may make use of attributes from the [`Fmt`] trait.
-    // TODO: Don't box
-    fn display<'a>(&self, id: &'a Id) -> Option<Box<dyn Display + 'a>>;
-}
-
-impl<'b, C: Cache<Id>, Id: ?Sized> Cache<Id> for &'b mut C {
-    fn fetch(&mut self, id: &Id) -> Result<&Source, Box<dyn Debug + '_>> {
-        C::fetch(self, id)
-    }
-    fn display<'a>(&self, id: &'a Id) -> Option<Box<dyn Display + 'a>> {
-        C::display(self, id)
-    }
-}
-
-impl<C: Cache<Id>, Id: ?Sized> Cache<Id> for Box<C> {
-    fn fetch(&mut self, id: &Id) -> Result<&Source, Box<dyn Debug + '_>> {
-        C::fetch(self, id)
-    }
-    fn display<'a>(&self, id: &'a Id) -> Option<Box<dyn Display + 'a>> {
-        C::display(self, id)
-    }
-}
-
 /// A type representing a single line of a [`Source`].
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Line {
@@ -172,31 +141,13 @@ impl Source {
     }
 }
 
-impl Cache<()> for Source {
-    fn fetch(&mut self, _: &()) -> Result<&Source, Box<dyn Debug + '_>> {
-        Ok(self)
-    }
-    fn display(&self, _: &()) -> Option<Box<dyn Display>> {
-        None
-    }
-}
-
-impl<Id: Display + Eq> Cache<Id> for (Id, Source) {
-    fn fetch(&mut self, id: &Id) -> Result<&Source, Box<dyn Debug + '_>> {
-        if id == &self.0 { Ok(&self.1) } else { Err(Box::new(format!("Failed to fetch source '{}'", id))) }
-    }
-    fn display<'a>(&self, id: &'a Id) -> Option<Box<dyn Display + 'a>> {
-        Some(Box::new(id))
-    }
-}
-
 /// A [`Cache`] that fetches [`Source`]s from the filesystem.
 #[derive(Default, Debug, Clone)]
 pub struct FileCache {
     files: HashMap<PathBuf, Source>,
 }
 
-impl Cache<Path> for FileCache {
+impl FileCache {
     fn fetch(&mut self, path: &Path) -> Result<&Source, Box<dyn Debug + '_>> {
         Ok(match self.files.entry(path.to_path_buf()) {
             // TODO: Don't allocate here
@@ -207,58 +158,6 @@ impl Cache<Path> for FileCache {
     fn display<'a>(&self, path: &'a Path) -> Option<Box<dyn Display + 'a>> {
         Some(Box::new(path.display()))
     }
-}
-
-/// A [`Cache`] that fetches [`Source`]s using the provided function.
-#[derive(Debug, Clone)]
-pub struct FnCache<Id, F> {
-    sources: HashMap<Id, Source>,
-    get: F,
-}
-
-impl<Id, F> FnCache<Id, F> {
-    /// Create a new [`FnCache`] with the given fetch function.
-    pub fn new(get: F) -> Self {
-        Self { sources: HashMap::default(), get }
-    }
-
-    /// Pre-insert a selection of [`Source`]s into this cache.
-    pub fn with_sources(mut self, sources: HashMap<Id, Source>) -> Self
-    where
-        Id: Eq + Hash,
-    {
-        self.sources.reserve(sources.len());
-        for (id, src) in sources {
-            self.sources.insert(id, src);
-        }
-        self
-    }
-}
-
-impl<Id: Display + Hash + PartialEq + Eq + Clone, F> Cache<Id> for FnCache<Id, F>
-where
-    F: for<'a> FnMut(&'a Id) -> Result<String, Box<dyn Debug>>,
-{
-    fn fetch(&mut self, id: &Id) -> Result<&Source, Box<dyn Debug + '_>> {
-        Ok(match self.sources.entry(id.clone()) {
-            Entry::Occupied(entry) => entry.into_mut(),
-            Entry::Vacant(entry) => entry.insert(Source::from((self.get)(id)?)),
-        })
-    }
-    fn display<'a>(&self, id: &'a Id) -> Option<Box<dyn Display + 'a>> {
-        Some(Box::new(id))
-    }
-}
-
-/// Create a [`Cache`] from a collection of ID/strings, where each corresponds to a [`Source`].
-pub fn sources<Id, S, I>(iter: I) -> impl Cache<Id>
-where
-    Id: Display + Hash + PartialEq + Eq + Clone + 'static,
-    I: IntoIterator<Item = (Id, S)>,
-    S: AsRef<str>,
-{
-    FnCache::new((move |id| Err(Box::new(format!("Failed to fetch source '{}'", id)) as _)) as fn(&_) -> _)
-        .with_sources(iter.into_iter().map(|(id, s)| (id, Source::from(s.as_ref()))).collect())
 }
 
 #[cfg(test)]

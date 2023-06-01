@@ -8,7 +8,7 @@ mod write;
 
 pub use crate::{
     draw::{ColorGenerator, Fmt},
-    source::{sources, Cache, FileCache, FnCache, Line, Source},
+    source::{sources, FileCache, FnCache, Line, Source},
 };
 use std::fmt::{Debug, Display, Formatter};
 pub use yansi::Color;
@@ -16,10 +16,8 @@ pub use yansi::Color;
 use crate::display::*;
 use std::{
     cmp::{Eq, PartialEq},
-    fs::File,
     hash::Hash,
     io::{self, Write},
-    num::NonZeroU32,
     ops::Range,
 };
 use unicode_width::UnicodeWidthChar;
@@ -44,11 +42,23 @@ impl FileID {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct FileSpan {
     start: usize,
     end: usize,
     file: FileID,
+}
+
+impl Debug for FileID {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FileID").field("id", &self.id).finish()
+    }
+}
+
+impl Debug for FileSpan {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FileSpan").field("start", &self.start).field("end", &self.end).field("file", &self.file).finish()
+    }
 }
 
 impl FileSpan {
@@ -226,7 +236,7 @@ impl Report {
     }
 
     /// Write this diagnostic out to `stderr`.
-    pub fn eprint<C: Cache<FileID>>(&self, cache: C) -> io::Result<()> {
+    pub fn eprint<C: Cache>(&self, cache: C) -> io::Result<()> {
         self.write(cache, io::stderr())
     }
 
@@ -234,7 +244,7 @@ impl Report {
     ///
     /// In most cases, [`Report::eprint`] is the
     /// ['more correct'](https://en.wikipedia.org/wiki/Standard_streams#Standard_error_(stderr)) function to use.
-    pub fn print<C: Cache<FileID>>(&self, cache: C) -> io::Result<()> {
+    pub fn print<C: Cache>(&self, cache: C) -> io::Result<()> {
         self.write_for_stdout(cache, io::stdout())
     }
 }
