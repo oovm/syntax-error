@@ -139,17 +139,17 @@ impl Span for Range<usize> {
 
 /// A type that represents a labelled section of source code.
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct Label<S = Range<usize>> {
-    span: S,
+pub struct Label {
+    span: FileSpan,
     msg: Option<String>,
     color: Option<Color>,
     order: i32,
     priority: i32,
 }
 
-impl<S> Label<S> {
+impl Label {
     /// Create a new [`Label`].
-    pub fn new(span: S) -> Self {
+    pub fn new(span: FileSpan) -> Self {
         Self { span, msg: None, color: None, order: 0, priority: 0 }
     }
 
@@ -196,22 +196,21 @@ impl<S> Label<S> {
 }
 
 /// A type representing a diagnostic that is ready to be written to output.
-pub struct Report<S: Span = Range<usize>> {
+pub struct Report {
     kind: Box<dyn ReportLevel>,
     code: Option<usize>,
     message: String,
     note: Option<String>,
     help: Option<String>,
-    location: (<S::SourceId as ToOwned>::Owned, usize),
-    labels: Vec<Label<S>>,
+    location: (FileID, usize),
+    labels: Vec<Label>,
     config: Config,
 }
 
-impl<S: Span> Report<S> {
+impl Report {
     /// Begin building a new [`Report`].
-    pub fn new<R, ID>(kind: R, src_id: ID, offset: usize) -> ReportBuilder<S>
+    pub fn new<R>(kind: R, src_id: FileID, offset: usize) -> ReportBuilder
     where
-        ID: Into<<S::SourceId as ToOwned>::Owned>,
         R: ReportLevel + 'static,
     {
         ReportBuilder {
@@ -227,7 +226,7 @@ impl<S: Span> Report<S> {
     }
 
     /// Write this diagnostic out to `stderr`.
-    pub fn eprint<C: Cache<S::SourceId>>(&self, cache: C) -> io::Result<()> {
+    pub fn eprint<C: Cache<FileID>>(&self, cache: C) -> io::Result<()> {
         self.write(cache, io::stderr())
     }
 
@@ -235,12 +234,12 @@ impl<S: Span> Report<S> {
     ///
     /// In most cases, [`Report::eprint`] is the
     /// ['more correct'](https://en.wikipedia.org/wiki/Standard_streams#Standard_error_(stderr)) function to use.
-    pub fn print<C: Cache<S::SourceId>>(&self, cache: C) -> io::Result<()> {
+    pub fn print<C: Cache<FileID>>(&self, cache: C) -> io::Result<()> {
         self.write_for_stdout(cache, io::stdout())
     }
 }
 
-impl<'a, S: Span> Debug for Report<S> {
+impl Debug for Report {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Report")
             .field("kind", &self.kind)
@@ -320,18 +319,18 @@ pub enum ReportKind {
 }
 
 /// A type used to build a [`Report`].
-pub struct ReportBuilder<S: Span> {
+pub struct ReportBuilder {
     kind: Box<dyn ReportLevel>,
     code: Option<usize>,
     message: String,
     note: Option<String>,
     help: Option<String>,
-    location: (<S::SourceId as ToOwned>::Owned, usize),
-    labels: Vec<Label<S>>,
+    location: (FileID, usize),
+    labels: Vec<Label>,
     config: Config,
 }
 
-impl<S: Span> ReportBuilder<S> {
+impl ReportBuilder {
     /// Set the kind of this report.
     pub fn set_code(&mut self, code: Option<usize>) {
         self.code = code;
@@ -376,12 +375,12 @@ impl<S: Span> ReportBuilder<S> {
     }
 
     /// Add a label to the report.
-    pub fn add_label(&mut self, label: Label<S>) {
+    pub fn add_label(&mut self, label: Label) {
         self.add_labels(std::iter::once(label));
     }
 
     /// Add multiple labels to the report.
-    pub fn add_labels<L: IntoIterator<Item = Label<S>>>(&mut self, labels: L) {
+    pub fn add_labels<L: IntoIterator<Item = Label>>(&mut self, labels: L) {
         let config = &self.config; // This would not be necessary in Rust 2021 edition
         self.labels.extend(labels.into_iter().map(|mut label| {
             label.color = config.filter_color(label.color);
@@ -390,13 +389,13 @@ impl<S: Span> ReportBuilder<S> {
     }
 
     /// Add a label to the report.
-    pub fn with_label(mut self, label: Label<S>) -> Self {
+    pub fn with_label(mut self, label: Label) -> Self {
         self.add_label(label);
         self
     }
 
     /// Add multiple labels to the report.
-    pub fn with_labels<L: IntoIterator<Item = Label<S>>>(mut self, labels: L) -> Self {
+    pub fn with_labels<L: IntoIterator<Item = Label>>(mut self, labels: L) -> Self {
         self.add_labels(labels);
         self
     }
@@ -408,7 +407,7 @@ impl<S: Span> ReportBuilder<S> {
     }
 
     /// Finish building the [`Report`].
-    pub fn finish(self) -> Report<S> {
+    pub fn finish(self) -> Report {
         Report {
             kind: self.kind,
             code: self.code,
@@ -422,7 +421,7 @@ impl<S: Span> ReportBuilder<S> {
     }
 }
 
-impl<S: Span> Debug for ReportBuilder<S> {
+impl Debug for ReportBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ReportBuilder")
             .field("kind", &self.kind)

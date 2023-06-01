@@ -1,3 +1,4 @@
+use crate::{FileID, FileSpan};
 use std::{borrow::Borrow, io, ops::Range};
 
 use super::{
@@ -18,19 +19,19 @@ enum LabelKind {
     Multiline,
 }
 
-struct LabelInfo<'a, S> {
+struct LabelInfo<'a> {
     kind: LabelKind,
-    label: &'a Label<S>,
+    label: &'a Label,
 }
 
-struct SourceGroup<'a, S: Span> {
-    src_id: &'a S::SourceId,
+struct SourceGroup<'a> {
+    src_id: &'a FileID,
     span: Range<usize>,
-    labels: Vec<LabelInfo<'a, S>>,
+    labels: Vec<LabelInfo<'a>>,
 }
 
-impl<S: Span> Report<S> {
-    fn get_source_groups(&self, cache: &mut impl Cache<S::SourceId>) -> Vec<SourceGroup<S>> {
+impl Report {
+    fn get_source_groups(&self, cache: &mut impl Cache<FileID>) -> Vec<SourceGroup> {
         let mut groups = Vec::new();
         for label in self.labels.iter() {
             let src_display = cache.display(label.span.source());
@@ -50,7 +51,7 @@ impl<S: Span> Report<S> {
             let label_info =
                 LabelInfo { kind: if start_line == end_line { LabelKind::Inline } else { LabelKind::Multiline }, label };
 
-            if let Some(group) = groups.iter_mut().find(|g: &&mut SourceGroup<S>| g.src_id == label.span.source()) {
+            if let Some(group) = groups.iter_mut().find(|g: &&mut SourceGroup| g.src_id == label.span.source()) {
                 group.span.start = group.span.start.min(label.span.start());
                 group.span.end = group.span.end.max(label.span.end());
                 group.labels.push(label_info);
@@ -72,19 +73,19 @@ impl<S: Span> Report<S> {
     /// `stderr`.  If you are printing to `stdout`, use the [`write_for_stdout`](Self::write_for_stdout) method instead.
     ///
     /// If you wish to write to `stderr` or `stdout`, you can do so via [`Report::eprint`] or [`Report::print`] respectively.
-    pub fn write<C: Cache<S::SourceId>, W: Write>(&self, cache: C, w: W) -> io::Result<()> {
+    pub fn write<C: Cache<FileID>, W: Write>(&self, cache: C, w: W) -> io::Result<()> {
         self.write_for_stream(cache, w, StreamType::Stderr)
     }
 
     /// Write this diagnostic to an implementor of [`Write`], assuming that the output is ultimately going to be printed
     /// to `stdout`.
-    pub fn write_for_stdout<C: Cache<S::SourceId>, W: Write>(&self, cache: C, w: W) -> io::Result<()> {
+    pub fn write_for_stdout<C: Cache<FileID>, W: Write>(&self, cache: C, w: W) -> io::Result<()> {
         self.write_for_stream(cache, w, StreamType::Stdout)
     }
 
     /// Write this diagnostic to an implementor of [`Write`], assuming that the output is ultimately going to be printed
     /// to the given output stream (`stdout` or `stderr`).
-    fn write_for_stream<C: Cache<S::SourceId>, W: Write>(&self, mut cache: C, mut w: W, s: StreamType) -> io::Result<()> {
+    fn write_for_stream<C: Cache<FileID>, W: Write>(&self, mut cache: C, mut w: W, s: StreamType) -> io::Result<()> {
         let draw = match self.config.char_set {
             CharSet::Unicode => draw::Characters::unicode(),
             CharSet::Ascii => draw::Characters::ascii(),
@@ -163,9 +164,9 @@ impl<S: Span> Report<S> {
                 writeln!(w, "{}{}", Show((' ', line_no_width + 2)), draw.vbar.fg(self.config.margin_color(), s))?;
             }
 
-            struct LineLabel<'a, S> {
+            struct LineLabel<'a> {
                 col: usize,
-                label: &'a Label<S>,
+                label: &'a Label,
                 multi: bool,
                 draw_msg: bool,
             }
@@ -187,8 +188,8 @@ impl<S: Span> Report<S> {
                                 is_ellipsis: bool,
                                 draw_labels: bool,
                                 report_row: Option<(usize, bool)>,
-                                line_labels: &[LineLabel<S>],
-                                margin_label: &Option<LineLabel<S>>|
+                                line_labels: &[LineLabel],
+                                margin_label: &Option<LineLabel>|
              -> std::io::Result<()> {
                 let line_no_margin = if is_line && !is_ellipsis {
                     let line_no = format!("{}", idx + 1);
@@ -207,7 +208,7 @@ impl<S: Span> Report<S> {
                     for col in 0..multi_labels.len() + (multi_labels.len() > 0) as usize {
                         let mut corner = None;
                         let mut hbar = None;
-                        let mut vbar: Option<&&Label<S>> = None;
+                        let mut vbar: Option<&&Label> = None;
                         let mut margin_ptr = None;
 
                         let multi_label = multi_labels.get(col);
@@ -643,7 +644,7 @@ impl<S: Span> Report<S> {
     }
 }
 
-impl<S: Span> Label<S> {
+impl Label {
     fn last_offset(&self) -> usize {
         self.span.end().saturating_sub(1).max(self.span.start())
     }
