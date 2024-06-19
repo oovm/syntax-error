@@ -1,18 +1,17 @@
 [package]
 name = "syntax-error"
-version = "0.0.3"
+version = "0.0.4"
 authors = ["Aster <192607617@qq.com>"]
 description = "Syntax error report"
 repository = "https://github.com/oovm/sub_projects"
 documentation = "https://docs.rs/syntax-error"
-readme = "Readme.md"
+readme = "readme.md"
 license = "MPL-2.0"
 edition = "2021"
 exclude = ["package.json", "tests/**"]
 
 [dependencies]
-#termcolor = "1.2.0"
-yansi = "0.5.1"
+yansi = "1.0.1"
 unicode-width = "0.1.10"
 
 [dev-dependencies]
